@@ -1,0 +1,22 @@
+{
+  "name": "claude-profiles",
+  "version": "0.1.0",
+  "description": "Switch Claude Code between Anthropic direct and custom LLM gateway profiles via slash commands. Bring-your-own-URL, bring-your-own-key, zero secret material stored in plugin files.",
+  "author": {
+    "name": "alexander-vyh",
+    "email": "alexander@vyhmeister.us",
+    "url": "https://github.com/alexander-vyh"
+  },
+  "homepage": "https://github.com/alexander-vyh/claude-profiles",
+  "repository": "https://github.com/alexander-vyh/claude-profiles",
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "claude-code",
+    "claude-code-plugin",
+    "llm-gateway",
+    "auth",
+    "profiles",
+    "proxy",
+    "anthropic"
+  ]
+}
