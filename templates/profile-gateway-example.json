@@ -1,0 +1,10 @@
+{
+  "name": "gateway-example",
+  "description": "EXAMPLE gateway profile - copy and customize. Replace ~/path/to/token-helper.sh with your actual helper script.",
+  "base_url": "https://your-gateway.example.com",
+  "auth": { "type": "helper_script", "path": "~/path/to/token-helper.sh" },
+  "ttl_ms": 300000,
+  "extras": {
+    "LLM_GATEWAY": "1"
+  }
+}
