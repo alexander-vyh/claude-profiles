@@ -8,7 +8,7 @@
 
 ## Status
 
-**v0.1.0 — early development.** The design is frozen but the commands and scripts are not yet implemented. See [Implementation Plan](#implementation-plan) below.
+**v0.1.0 — released.** All eight commands are implemented, tested (259 bats tests green), and shellcheck-clean. See [Install](#install) to try it.
 
 ## Prerequisites
 
@@ -33,6 +33,60 @@
 
 Every command must be invoked explicitly by the user. The plugin never auto-activates on context — auth rotation is an explicit action, not an inferred one.
 
+### Usage examples
+
+First-time setup — from any Claude Code session:
+
+```
+/claude-profiles:init
+```
+
+This creates `~/.claude/llm-profiles/` with two seed profiles (`anthropic-direct.json` and `gateway-example.json`), a `.helpers/` directory for generated shims, and an empty `.state.json` sidecar.
+
+See what you have and which profile is active:
+
+```
+/claude-profiles:list
+/claude-profiles:current
+```
+
+Switch to a different profile (global scope by default):
+
+```
+/claude-profiles:switch anthropic-direct
+```
+
+Switch just the current project, leaving your global profile untouched:
+
+```
+/claude-profiles:switch cake-gateway --project
+```
+
+Create a new profile interactively:
+
+```
+/claude-profiles:add
+```
+
+Edit an existing profile in your `$EDITOR` (validates on save):
+
+```
+/claude-profiles:edit cake-gateway
+```
+
+Remove a profile (must not be active):
+
+```
+/claude-profiles:remove old-gateway
+```
+
+Run diagnostics; use `--fix` to repair drift or rebuild a corrupt sidecar:
+
+```
+/claude-profiles:doctor
+/claude-profiles:doctor --fix
+```
+
 ## Profile schema
 
 ```json
@@ -52,6 +106,8 @@ Every command must be invoked explicitly by the user. The plugin never auto-acti
   }
 }
 ```
+
+The authoritative schema lives at [`lib/profile-schema.json`](./lib/profile-schema.json). See [`docs/design/phase3-decisions.md`](./docs/design/phase3-decisions.md) §2 for field-by-field rules and security constraints.
 
 ### Auth types
 
@@ -83,25 +139,70 @@ Project scope **overrides** global scope because Claude Code's own settings prec
 |------|----------|
 | `--global` | Always edits the global settings file regardless of cwd |
 | `--project` | Always edits the current repo's project settings file (errors if not in a repo) |
-| `--force` | Permits overwriting a locked project's profile |
+| `--force` | Permits overwriting a locked project's profile (implies `--project`) |
 | *(none)* | Defaults to `--global` |
+
+## Security model
+
+The plugin is built so that its own files never contain secret material. Key guarantees:
+
+- **No secrets in plugin-managed files.** Profile JSONs, the sidecar state file, and generated helper shims hold only references (paths, env var names, keychain service names) — never API keys or tokens.
+- **Extras denylist.** `validate-profile.sh` and `apply-profile.sh` both reject extras keys that could alter process semantics — `PATH`, `LD_*`, `DYLD_*`, `NODE_OPTIONS`, `PYTHONPATH`, `SSL_CERT_*`, plugin-managed keys, and many more. Enforced at validate-time and apply-time (defense in depth).
+- **Drift detection.** Every `switch` compares the settings file against the sidecar's record of what the plugin last wrote. If a plugin-managed key was hand-edited, the switch stops and asks before overwriting.
+- **Atomic writes.** Settings, sidecar, profile, and shim writes all follow a same-directory-mktemp-then-rename protocol with an advisory lock, so concurrent switches can't corrupt state.
+- **No autonomous activation.** All behavior is user-invoked via slash commands. The plugin ships no agents, hooks, or skills.
+
+See [`docs/design/phase3-decisions.md`](./docs/design/phase3-decisions.md) §12 (architectural invariants), §12a (write protocol), and §13 (review amendments A1–A7) for the full threat model, schema constraints, and merge algorithm.
 
 ## Install
 
-*(installation instructions will be added once the plugin is published to a marketplace — for now, clone locally and reference with `--plugin-dir`)*
+### Local install (recommended while evaluating)
 
-## Implementation Plan
+Clone this repo and point Claude Code at the local directory:
 
-This plugin is being built top-down through the `/plugin-dev:create-plugin` workflow. Phases:
+```bash
+git clone https://github.com/alexander-vyh/claude-profiles.git ~/src/claude-profiles
+claude --plugin-dir ~/src/claude-profiles
+```
 
-- [x] Phase 1 — Discovery
-- [x] Phase 2 — Component planning (8 commands, 0 agents, 0 hooks, 0 MCP)
-- [x] Phase 3 — Detailed design (profile schema, settings mutation model, scope rules, drift detection)
-- [ ] Phase 4 — Structure creation *(in progress)*
-- [ ] Phase 5 — Command + script implementation
-- [ ] Phase 6 — Validation
-- [ ] Phase 7 — End-to-end testing
-- [ ] Phase 8 — Documentation + marketplace entry
+Inside the session, run `/claude-profiles:init` to seed the profile directory, then `/claude-profiles:list` to confirm the commands are loaded.
+
+To make the plugin available for every session without the flag, add `~/src/claude-profiles` to your Claude Code plugin path (see [Claude Code plugin docs](https://code.claude.com/docs/en/plugins)).
+
+### Marketplace install
+
+*(Marketplace publication is pending. This section will be updated once `claude-profiles` is listed in an official or curated marketplace.)*
+
+## Troubleshooting
+
+**"I switched profiles but my session still uses the old one."**
+Claude Code reads auth env vars at process startup. Exit Claude Code and relaunch after running `/claude-profiles:switch`. Exit code 9 from `switch` is the plugin telling you the running session is now stale — the new profile is on disk, but the current process needs a restart.
+
+**`/claude-profiles:doctor` reports drift.**
+Something (another tool, a manual edit) changed a plugin-managed key in your `settings.local.json` since the last switch. Run `/claude-profiles:doctor --fix` to walk through each drifted scope and choose per scope whether to overwrite with the active profile's values, incorporate the current file as the new baseline, or leave it alone.
+
+**"Missing `jq`" / exit code 7.**
+`jq` is a hard dependency. Install it before running any command:
+
+```bash
+# macOS
+brew install jq
+
+# Debian / Ubuntu
+sudo apt install jq
+
+# Arch
+sudo pacman -S jq
+```
+
+**Keychain auth on Linux / Windows.**
+`auth.type: keychain` is macOS-only in v0.1.0 (it shells out to the `security` binary). On Linux or Windows, use `auth.type: helper_script` wrapping a platform-appropriate tool — `secret-tool`, `pass`, `wincred`, etc. A tiny script that prints the key to stdout is all you need; `apiKeyHelper` does the rest.
+
+**"Sidecar state file is missing or corrupt."**
+`apply-profile.sh` refuses to switch when `~/.claude/llm-profiles/.state.json` is missing or unparseable (a deliberate choice — silently treating it as empty would strand previously-managed keys in your settings file). Run `/claude-profiles:doctor --fix` to rebuild the sidecar from the `CLAUDE_PROFILES_ACTIVE` env marker and your profile definitions.
+
+**Helper script not executable.**
+For `auth.type: helper_script` profiles, the referenced file must exist and be executable at switch time. Check with `ls -l <path>`; `chmod +x <path>` if needed. `/claude-profiles:doctor` reports this without running the helper (per invariant #8).
 
 ## License
 
