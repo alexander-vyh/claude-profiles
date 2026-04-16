@@ -116,4 +116,128 @@ detect_scope() {
   fi
 }
 
+# atomic_write <target> [<mode>] — Plugin-Managed Write Protocol (§12a).
+# Reads content from stdin, writes to a same-dir tempfile, chmods, then
+# rename-replaces the target. Default mode 0600. Cleans up tempfile on
+# any failure.
+atomic_write() {
+  local target="$1"
+  local mode="${2:-0600}"
+  local dir base tmpfile rc=0
+
+  dir="$(dirname "$target")"
+  if [ ! -d "$dir" ]; then
+    printf 'atomic_write: parent dir does not exist: %s\n' "$dir" >&2
+    return 1
+  fi
+
+  base="$(basename "$target")"
+  tmpfile="$(mktemp "$dir/.$base.XXXXXX")" || return 1
+
+  if ! cat > "$tmpfile"; then
+    rc=1
+  elif ! chmod "$mode" "$tmpfile"; then
+    rc=1
+  elif ! mv -f "$tmpfile" "$target"; then
+    rc=1
+  fi
+
+  if [ "$rc" -ne 0 ] && [ -f "$tmpfile" ]; then
+    rm -f "$tmpfile"
+  fi
+  return "$rc"
+}
+
+# lock_acquire <lockdir> — mkdir-based advisory lock per §12a polyfill.
+# Writes the acquiring shell's PID into <lockdir>/pid. Stale locks (whose
+# PID is no longer alive) are reclaimed automatically. Returns 0 on
+# success, 1 if a live holder already owns the lock.
+lock_acquire() {
+  local lockdir="$1"
+  local retries=0
+
+  while [ "$retries" -lt 3 ]; do
+    if mkdir "$lockdir" 2>/dev/null; then
+      printf '%s' "$$" > "$lockdir/pid"
+      return 0
+    fi
+
+    if [ -f "$lockdir/pid" ]; then
+      local holder_pid
+      holder_pid="$(cat "$lockdir/pid" 2>/dev/null)"
+      if [ -n "$holder_pid" ] && ! kill -0 "$holder_pid" 2>/dev/null; then
+        rm -rf "$lockdir"
+        retries=$((retries + 1))
+        continue
+      fi
+    fi
+    return 1
+  done
+  return 1
+}
+
+# lock_release <lockdir> — remove the lockdir. Idempotent.
+lock_release() {
+  local lockdir="$1"
+  [ -d "$lockdir" ] && rm -rf "$lockdir"
+  return 0
+}
+
+# sidecar_path — canonical path to the sidecar state file (§4).
+sidecar_path() {
+  printf '%s/.state.json' "$(profile_dir)"
+}
+
+# sidecar_read_scope <jq-path> — read a scope entry from the sidecar.
+# Prints the entry as compact JSON, or "{}" if the scope isn't tracked.
+# Per A2.2, refuses with exit 1 if the sidecar is missing or corrupt.
+sidecar_read_scope() {
+  local scope_key="$1"
+  local sidecar
+  sidecar="$(sidecar_path)"
+
+  if [ ! -f "$sidecar" ]; then
+    printf 'claude-profiles: sidecar state file missing: %s\n' "$sidecar" >&2
+    printf '  Run /claude-profiles:doctor --fix to rebuild.\n' >&2
+    return 1
+  fi
+
+  if ! jq empty "$sidecar" 2>/dev/null; then
+    printf 'claude-profiles: sidecar state file is corrupt: %s\n' "$sidecar" >&2
+    printf '  Run /claude-profiles:doctor --fix to rebuild.\n' >&2
+    return 1
+  fi
+
+  jq -c ".$scope_key // {}" "$sidecar"
+}
+
+# sidecar_write_scope <jq-path> <entry-json> — atomically update one
+# scope entry in the sidecar, preserving all other scope entries.
+# Creates the sidecar if missing. Refuses if sidecar is corrupt.
+sidecar_write_scope() {
+  local scope_key="$1"
+  local entry_json="$2"
+  local sidecar
+  sidecar="$(sidecar_path)"
+
+  local dir
+  dir="$(dirname "$sidecar")"
+  mkdir -p "$dir"
+
+  local current='{}'
+  if [ -f "$sidecar" ]; then
+    current="$(cat "$sidecar")"
+    if ! printf '%s' "$current" | jq empty 2>/dev/null; then
+      printf 'claude-profiles: sidecar state file is corrupt: %s\n' "$sidecar" >&2
+      printf '  Run /claude-profiles:doctor --fix to rebuild.\n' >&2
+      return 1
+    fi
+  fi
+
+  local new_content
+  new_content="$(printf '%s' "$current" | jq --argjson entry "$entry_json" ".$scope_key = \$entry")" || return 1
+
+  printf '%s\n' "$new_content" | atomic_write "$sidecar"
+}
+
 require_cmd jq
