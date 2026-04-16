@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "claude-profiles profile",
+  "description": "Profile schema for claude-profiles v0.1.0. Authoritative machine-readable companion to docs/design/phase3-decisions.md §2 + Amendment A1.",
+  "type": "object",
+  "required": ["name", "auth"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+      "description": "Profile identifier. MUST equal the filename basename (validation rule 1)."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "base_url": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "description": "LLM endpoint URL. MUST be https:// except for localhost/127.0.0.1 (validation rule 2)."
+    },
+    "auth": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "none" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "helper_script" },
+            "path": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "var"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "env_var" },
+            "var": {
+              "type": "string",
+              "pattern": "^[A-Z_][A-Z0-9_]*$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "service"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "keychain" },
+            "service": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]{1,255}$",
+              "description": "Keychain service name. Regex per Amendment A1.1 rejects shell metacharacters."
+            },
+            "account": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]{1,255}$",
+              "description": "Keychain account name. Defaults to $USER. Same regex as service (A1.1)."
+            }
+          }
+        }
+      ]
+    },
+    "ttl_ms": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 86400000
+    },
+    "extras": {
+      "type": "object",
+      "patternProperties": {
+        "^[A-Z_][A-Z0-9_]*$": { "type": "string" }
+      },
+      "additionalProperties": false,
+      "description": "Free-form env vars for the active Claude Code session. Keys MUST NOT appear in EXTRAS_DENYLIST (see validation rule 8 / Amendment A1.2). Enforced at both validate-time and apply-time (defense-in-depth)."
+    }
+  }
+}
