@@ -39,8 +39,8 @@ jobs:
           echo "shellcheck: $(shellcheck --version | grep -E '^version:')"
           echo "bats: $(./tests/bats-core/bin/bats --version)"
 
-      - name: Shellcheck all scripts
-        run: shellcheck -x scripts/*.sh
+      - name: Shellcheck all scripts (severity=style)
+        run: shellcheck --severity=style -x scripts/*.sh
 
       - name: Validate JSON schema syntax
         run: jq empty lib/profile-schema.json

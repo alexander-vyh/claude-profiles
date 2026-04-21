@@ -299,7 +299,9 @@ if [ -d "$target_dir" ]; then
       continue
     fi
     base_url="$(jq -r '.base_url // ""' "$pf")"
-    [ -n "$base_url" ] && [ "$base_url" != "null" ] || continue
+    if [ -z "$base_url" ] || [ "$base_url" = "null" ]; then
+      continue
+    fi
 
     if [ "$has_curl" -eq 0 ]; then
       emit_check "reachability" "$pname" "warn" "SKIPPED (curl not installed)"
@@ -477,9 +479,13 @@ if [ "$do_fix" -eq 1 ]; then
   for f in $orphan_tmp; do
     [ -n "$f" ] || continue
     if [ -d "$f" ]; then
-      rm -rf "$f" && emit_check "fix" "" "ok" "removed stale lock: $f" || true
+      if rm -rf "$f"; then
+        emit_check "fix" "" "ok" "removed stale lock: $f" || true
+      fi
     elif [ -f "$f" ]; then
-      rm -f "$f" && emit_check "fix" "" "ok" "removed orphan tempfile: $f" || true
+      if rm -f "$f"; then
+        emit_check "fix" "" "ok" "removed orphan tempfile: $f" || true
+      fi
     fi
   done
 

@@ -85,8 +85,9 @@ if jqe 'has("ttl_ms")'; then
   [ "$(jqr '.ttl_ms | type')" = "number" ] \
     || die_schema "ttl_ms must be an integer"
   ttl="$(jqr '.ttl_ms')"
-  [ "$ttl" -ge 1000 ] && [ "$ttl" -le 86400000 ] \
-    || die_schema "ttl_ms must be between 1000 and 86400000 (got $ttl)"
+  if [ "$ttl" -lt 1000 ] || [ "$ttl" -gt 86400000 ]; then
+    die_schema "ttl_ms must be between 1000 and 86400000 (got $ttl)"
+  fi
 fi
 
 # ---- auth (required) ----

@@ -270,7 +270,7 @@ fi
 # Valid — atomically install at the real path, mode 0644 per
 # §12a invariant 13.
 # ============================================================
-cat "$stage_path" | atomic_write "$target" 0644
+atomic_write "$target" 0644 < "$stage_path"
 rm -rf "$stage_dir"
 trap - EXIT
 
