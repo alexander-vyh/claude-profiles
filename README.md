@@ -1,5 +1,8 @@
 # claude-profiles
 
+[![test](https://github.com/alexander-vyh/claude-profiles/actions/workflows/test.yml/badge.svg)](https://github.com/alexander-vyh/claude-profiles/actions/workflows/test.yml)
+[![license: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](./LICENSE)
+
 > Switch Claude Code between Anthropic direct and custom LLM gateway profiles via slash commands.
 
 `claude-profiles` is a [Claude Code](https://code.claude.com) plugin that lets you maintain multiple LLM endpoint configurations — Anthropic direct, your company's LLM gateway, a self-hosted LiteLLM proxy, a local relay, etc. — and switch between them with a single command. Profiles are stored in `~/.claude/llm-profiles/` and support both global and per-project scope.

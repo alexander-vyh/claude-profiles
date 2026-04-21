@@ -1,0 +1,59 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: bats + shellcheck (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq shellcheck
+
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install jq shellcheck
+
+      - name: Verify dependencies
+        run: |
+          echo "bash: $(bash --version | head -1)"
+          echo "jq: $(jq --version)"
+          echo "shellcheck: $(shellcheck --version | grep -E '^version:')"
+          echo "bats: $(./tests/bats-core/bin/bats --version)"
+
+      - name: Shellcheck all scripts
+        run: shellcheck -x scripts/*.sh
+
+      - name: Validate JSON schema syntax
+        run: jq empty lib/profile-schema.json
+
+      - name: Run bats test suite
+        run: ./tests/bats-core/bin/bats tests/
+
+      - name: Verify tests produced expected count
+        if: matrix.os == 'macos-latest'
+        run: |
+          passing=$(./tests/bats-core/bin/bats tests/ 2>&1 | grep -cE '^ok ')
+          echo "Passing tests: $passing"
+          if [ "$passing" -lt 250 ]; then
+            echo "::error::Expected 250+ passing tests, got $passing"
+            exit 1
+          fi
