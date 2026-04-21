@@ -37,9 +37,7 @@ atomic_write_cmd() {
 @test "atomic_write sets target mode to 0600 by default" {
   target="$HOME/secrets.txt"
   atomic_write_cmd "$target" "sensitive"
-  # BSD stat (macOS) prints octal mode via -f '%p' with leading filetype.
-  mode=$(stat -f '%p' "$target" 2>/dev/null || stat -c '%a' "$target" 2>/dev/null)
-  # Accept either "100600" (BSD full) or "600" (GNU -c '%a').
+  mode=$(file_mode "$target")
   case "$mode" in
     *600) : ;;
     *) echo "expected mode 0600, got $mode" >&2; false ;;
@@ -73,7 +71,7 @@ atomic_write_cmd() {
     source '$(cp_script lib.sh)'
     atomic_write '$target' 0700
   "
-  mode=$(stat -f '%p' "$target" 2>/dev/null || stat -c '%a' "$target" 2>/dev/null)
+  mode=$(file_mode "$target")
   case "$mode" in
     *700) : ;;
     *) echo "expected mode 0700, got $mode" >&2; false ;;

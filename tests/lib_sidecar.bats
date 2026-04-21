@@ -83,7 +83,7 @@ teardown() {
     sidecar_write_scope global '{\"active_profile\":\"foo\"}'
   "
   [ -f "$SIDECAR" ]
-  mode=$(stat -f '%p' "$SIDECAR" 2>/dev/null || stat -c '%a' "$SIDECAR" 2>/dev/null)
+  mode=$(file_mode "$SIDECAR")
   case "$mode" in
     *600) : ;;
     *) echo "expected mode 0600, got $mode" >&2; false ;;

@@ -38,3 +38,17 @@ cp_script() {
 cp_lib() {
   printf '%s/lib/%s' "$CP_ROOT" "$1"
 }
+
+# file_mode <path> — print octal mode, cross-platform (macOS BSD vs. GNU).
+#
+# Chaining `stat -f '%Lp' $f || stat -c '%a' $f` is a trap: on Linux,
+# `stat -f FILE` shows FILESYSTEM stats and SILENTLY SUCCEEDS with
+# garbage output, never falling through to `-c '%a'`. We detect GNU
+# stat via its --version flag (BSD stat lacks --version, errors out).
+file_mode() {
+  if stat --version >/dev/null 2>&1; then
+    stat -c '%a' "$1"
+  else
+    stat -f '%Lp' "$1"
+  fi
+}

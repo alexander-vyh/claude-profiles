@@ -87,11 +87,7 @@ create() {
   local path="$PROFILES_DIR/simple.json"
   [ -f "$path" ]
   local mode
-  if [ "$(uname)" = "Darwin" ]; then
-    mode="$(stat -f '%Lp' "$path")"
-  else
-    mode="$(stat -c '%a' "$path")"
-  fi
+  mode="$(file_mode "$path")"
   assert_equal "$mode" "644"
 }
 

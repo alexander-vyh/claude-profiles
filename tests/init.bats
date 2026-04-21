@@ -18,10 +18,7 @@ init() {
   run bash "$(cp_script init.sh)" "$@"
 }
 
-# Reads octal mode, stripping any file-type prefix.
-file_mode() {
-  stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1" 2>/dev/null
-}
+# file_mode is provided by test_helper/common.bash (cross-platform).
 
 # ============================================================
 # Fresh init — everything gets created

@@ -86,7 +86,7 @@ write_profile() {
   }')
   render "$path"
   assert_success
-  mode=$(stat -f '%p' "$HELPERS_DIR/vault.sh" 2>/dev/null || stat -c '%a' "$HELPERS_DIR/vault.sh" 2>/dev/null)
+  mode=$(file_mode "$HELPERS_DIR/vault.sh")
   case "$mode" in
     *700) : ;;
     *) echo "expected mode 0700, got $mode" >&2; false ;;
@@ -152,7 +152,7 @@ write_profile() {
   render "$path"
   assert_success
   [ -f "$HELPERS_DIR/mac.sh" ]
-  mode=$(stat -f '%p' "$HELPERS_DIR/mac.sh" 2>/dev/null || stat -c '%a' "$HELPERS_DIR/mac.sh" 2>/dev/null)
+  mode=$(file_mode "$HELPERS_DIR/mac.sh")
   case "$mode" in
     *700) : ;;
     *) echo "expected mode 0700, got $mode" >&2; false ;;
